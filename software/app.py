@@ -8,6 +8,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 import paho.mqtt.client as mqtt
 
+<<<<<<< HEAD
 BROKER = "localhost"
 PORT = 1883
 
@@ -19,6 +20,10 @@ connected_clients: list[WebSocket] = []
 
 # Main event loop reference for scheduling from MQTT thread
 main_loop: asyncio.AbstractEventLoop = None
+=======
+PHONE_NUMBER = "number"  # Your phone number with country code (no +)
+CALLMEBOT_API_KEY = "key"  # The key sent to you on WhatsApp
+>>>>>>> 4b716d6 (...)
 
 
 async def broadcast_update(device: str, sensor: str, value: str):
