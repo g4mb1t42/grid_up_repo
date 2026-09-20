@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Switchgear Monitor</title>
+    <style>
+        body { font-family: monospace; margin: 16px; font-size: 13px; color: #111; }
+        h1, h2 { font-size: 16px; margin: 0 0 10px 0; }
+        .layout { display: flex; gap: 20px; align-items: flex-start; }
+        .panel { flex: 1; }
+        .panel-wide { flex: 2; }
+        
+        /* Minimalist Tables */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+        th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
+        th { background: #f0f0f0; }
+        
+        /* Compact Form Controls */
+        input, button { font-family: inherit; font-size: 12px; padding: 2px 6px; }
+        .filter-box { margin-bottom: 8px; }
+
+        /* Minimal Status Badges */
+        .status-online { color: green; font-weight: bold; }
+        .status-offline { color: red; font-weight: bold; background: #fee; }
+        .warn { color: red; font-weight: bold; }
+        .trip { background: red; color: white; padding: 1px 4px; font-weight: bold; }
+        .offline-row { background: #f9f9f9; color: #777; }
+
+        /* Minimal Alarm Cards */
+        #alarmsList { display: flex; flex-direction: column; gap: 6px; }
+        .alarm-item { border: 1px solid #999; padding: 6px; font-size: 12px; }
+        .alarm-critical { border-color: red; background: #fee; }
+        .alarm-inspection { border-color: #d97706; background: #fffbeb; }
+    </style>
+</head>
+<body>
+
+    <h1>Switchgear Telemetry & Safety Monitor</h1>
+
+    <div class="layout">
+        <!-- Live Telemetry -->
+        <div class="panel panel-wide">
+            <h2>Active Panels</h2>
+            <div class="filter-box">
+                <input type="text" id="searchBox" placeholder="Filter panel..." onkeyup="filterPanels()">
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Device</th>
+                        <th>Status</th>
+                        <th>Arc</th>
+                        <th>Current (A)</th>
+                        <th>Humidity (%)</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody id="telemetryRows"></tbody>
+            </table>
+        </div>
+
+        <!-- Alarm / Inspection Ledger -->
+        <div class="panel">
+            <h2>Alarm & Inspection Ledger</h2>
+            <div id="alarmsList"></div>
+        </div>
+    </div>
+
+    <!-- Historical Query -->
+    <div style="margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;">
+        <h2>Historical Query</h2>
+        <input type="text" id="histDevice" value="dummy1" size="10">
+        <input type="text" id="histSensor" value="current" size="10">
+        <button onclick="fetchHistory()">Fetch</button>
+        <table style="margin-top: 8px; max-width: 600px;">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Device</th>
+                    <th>Sensor</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const telemetryRows = document.getElementById("telemetryRows");
+        const alarmsList = document.getElementById("alarmsList");
+        const searchBox = document.getElementById("searchBox");
+
+        function filterPanels() {
+            const query = searchBox.value.toLowerCase();
+            document.querySelectorAll("#telemetryRows tr").forEach(row => {
+                row.style.display = row.dataset.device.toLowerCase().includes(query) ? "" : "none";
+            });
+        }
+
+        function getOrCreateRow(dev) {
+            let row = document.getElementById(`row-${dev}`);
+            if (!row) {
+                row = document.createElement("tr");
+                row.id = `row-${dev}`;
+                row.dataset.device = dev;
+                row.innerHTML = `
+                    <td><strong>${dev}</strong></td>
+                    <td id="${dev}-status"><span class="status-online">ONLINE</span></td>
+                    <td id="${dev}-arc">OK</td>
+                    <td id="${dev}-current">--</td>
+                    <td id="${dev}-humidity">--</td>
+                    <td id="${dev}-time">--</td>
+                `;
+
+                // Sorted insertion
+                const rows = Array.from(telemetryRows.querySelectorAll("tr"));
+                let inserted = false;
+                for (let r of rows) {
+                    if (dev.localeCompare(r.dataset.device, undefined, { numeric: true }) < 0) {
+                        telemetryRows.insertBefore(row, r);
+                        inserted = true;
+                        break;
+                    }
+                }
+                if (!inserted) telemetryRows.appendChild(row);
+                filterPanels();
+            }
+            return row;
+        }
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === "device_status") {
+                const row = getOrCreateRow(data.device_id);
+                const statusCell = document.getElementById(`${data.device_id}-status`);
+                if (data.status === "OFFLINE") {
+                    statusCell.innerHTML = `<span class="status-offline">OFFLINE</span>`;
+                    row.classList.add("offline-row");
+                } else {
+                    statusCell.innerHTML = `<span class="status-online">ONLINE</span>`;
+                    row.classList.remove("offline-row");
+                }
+                document.getElementById(`${data.device_id}-time`).innerText = new Date(data.time * 1000).toLocaleTimeString();
+
+            } else if (data.type === "telemetry") {
+                const dev = data.device_id;
+                getOrCreateRow(dev);
+
+                if (data.sensor_id === "arc") {
+                    const cell = document.getElementById(`${dev}-arc`);
+                    cell.innerHTML = data.value >= 1.0 ? `<span class="trip">TRIP</span>` : "OK";
+                } else if (data.sensor_id === "current") {
+                    const cell = document.getElementById(`${dev}-current`);
+                    cell.innerText = data.value.toFixed(1);
+                    cell.className = data.value > 600.0 ? "warn" : "";
+                } else if (data.sensor_id === "humidity") {
+                    const cell = document.getElementById(`${dev}-humidity`);
+                    cell.innerText = data.value.toFixed(1);
+                    cell.className = data.value > 85.0 ? "warn" : "";
+                }
+
+                document.getElementById(`${dev}-time`).innerText = new Date(data.time * 1000).toLocaleTimeString();
+
+            } else if (data.type === "alarm_event") {
+                const cardId = `alarm-${data.key}`;
+                let card = document.getElementById(cardId);
+
+                if (data.action === "TRIGGER") {
+                    if (!card) {
+                        card = document.createElement("div");
+                        card.id = cardId;
+                        card.className = "alarm-item alarm-critical";
+                        alarmsList.prepend(card);
+                    }
+                    card.innerHTML = `[${new Date().toLocaleTimeString()}] <strong>${data.severity}</strong>: ${data.message}`;
+                } else if (data.action === "INSPECTION_REQUIRED") {
+                    if (card) {
+                        card.className = "alarm-item alarm-inspection";
+                        card.innerHTML = `[${new Date().toLocaleTimeString()}] <strong>INSPECTION REQ</strong>: ${data.message}`;
+                    }
+                }
+            }
+        };
+
+        async function fetchHistory() {
+            const dev = document.getElementById("histDevice").value;
+            const sen = document.getElementById("histSensor").value;
+            const res = await fetch(`/api/history?device_id=${dev}&sensor_id=${sen}&limit=10`);
+            const rows = await res.json();
+            const tbody = document.getElementById("historyBody");
+            tbody.innerHTML = "";
+            rows.forEach(r => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `<td>${new Date(r.timestamp * 1000).toLocaleTimeString()}</td><td>${r.device}</td><td>${r.sensor}</td><td>${r.value}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
