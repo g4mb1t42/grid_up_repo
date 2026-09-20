@@ -115,7 +115,7 @@ def dispatch_external_alert(alert_event: dict):
 
   alarm_mgr.last_dispatched[key] = now
   print(
-      f"🚨 [EXTERNAL OUTBOX] ({alert_event['severity']}) ->"
+      f"[EXTERNAL OUTBOX] ({alert_event['severity']}) ->"
       f" {alert_event['message']}"
   )
 

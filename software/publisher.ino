@@ -7,12 +7,11 @@
 const char* ssid        = "YOUR_WIFI_SSID";
 const char* password    = "YOUR_WIFI_PASSWORD";
 
-// Use your host PC / Raspberry Pi local network IP running Mosquitto:
 const char* mqtt_server = "192.168.1.50";
 const int   mqtt_port   = 1883;
 
-// Device Identity (Matches your backend device_id naming scheme)
-const char* DEVICE_ID   = "dummy1";
+// Device Identity
+const char* DEVICE_ID   = "esp0";
 
 // Pin Assignments
 const int PIN_ARC_INTERRUPT = 4;   // Digital out from optical sensor / comparator
@@ -172,7 +171,7 @@ void loop() {
   if (arcTripped) {
     // Publish immediate alert with QoS 1
     client.publish(TOPIC_ARC.c_str(), "1.0", false);
-    Serial.println("⚡ [CRITICAL] Arc Flash Event Dispatched to MQTT!");
+    Serial.println("[CRITICAL] Arc Flash Event Dispatched to MQTT!");
 
     // Clear flag after transmission (or add local latch logic if required)
     arcTripped = false;

@@ -5,7 +5,7 @@ import paho.mqtt.client as mqtt
 BROKER = "localhost"
 PORT = 1883
 NUM_DEVICES = 100
-DEVICES = [f"dummy{i}" for i in range(1, NUM_DEVICES + 1)]
+DEVICES = [f"esp{i}" for i in range(1, NUM_DEVICES + 1)]
 
 # Create and connect dedicated MQTT clients per device to demonstrate true per-node LWT
 clients = {}

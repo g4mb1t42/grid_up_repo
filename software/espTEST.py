@@ -10,7 +10,7 @@ import uvicorn
 
 MQTT_BROKER = "localhost"
 MQTT_PORT = 1883
-DEVICE_ID = "dummy666"
+DEVICE_ID = "espTEST"
 
 state = {"arc": 0.0, "current": 250.0, "humidity": 50.0}
 state_lock = threading.Lock()
@@ -56,7 +56,7 @@ def publisher_loop():
 pub_thread = threading.Thread(target=publisher_loop, daemon=True)
 pub_thread.start()
 
-app = FastAPI(title="dummy666 Controller")
+app = FastAPI(title="espTEST Controller")
 
 
 class SensorOverride(BaseModel):
@@ -101,62 +101,85 @@ def simulate_crash():
 def control_panel():
   return """
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Evil dummy666 Manual Control</title>
+    <meta charset="UTF-8">
+    <title>espTEST Controller</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #111827; color: #f9fafb; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .card { background: #1f2937; padding: 24px; border-radius: 12px; border: 1px solid #374151; width: 400px; }
-        h2 { color: #f87171; margin-top: 0; text-align: center; }
-        .row { margin-bottom: 14px; }
-        label { display: block; font-size: 13px; color: #9ca3af; margin-bottom: 6px; }
-        input[type="number"], select { width: 100%; box-sizing: border-box; background: #374151; border: 1px solid #4b5563; color: white; padding: 8px 12px; border-radius: 6px; }
-        .btn-group { display: flex; gap: 8px; margin-top: 10px; }
-        button { flex: 1; padding: 10px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; }
-        .btn-apply { background: #dc2626; color: white; }
-        .btn-safe { background: #10b981; color: white; }
-        .btn-warn { background: #f59e0b; color: white; }
-        .btn-kill { background: #450a0a; border: 1px solid #ef4444; color: #fca5a5; }
-        .status-box { margin-top: 15px; font-size: 12px; color: #9ca3af; text-align: center; border-top: 1px solid #374151; padding-top: 10px; }
+        body { font-family: monospace; margin: 16px; font-size: 13px; color: #111; background: #fff; }
+        h1 { font-size: 16px; margin: 0 0 12px 0; }
+        .panel { max-width: 480px; border: 1px solid #ccc; padding: 12px; background: #fafafa; }
+        .row { margin-bottom: 10px; }
+        label { display: block; font-weight: bold; margin-bottom: 4px; }
+        input[type="number"], select {
+            width: 100%;
+            box-sizing: border-box;
+            font-family: inherit;
+            font-size: 12px;
+            padding: 3px 6px;
+            border: 1px solid #999;
+            background: #fff;
+        }
+        .btn-group { display: flex; gap: 8px; margin-top: 8px; }
+        button {
+            flex: 1;
+            font-family: inherit;
+            font-size: 12px;
+            padding: 4px 8px;
+            cursor: pointer;
+            background: #eaeaea;
+            border: 1px solid #999;
+            font-weight: bold;
+        }
+        button:hover { background: #dcdcdc; }
+        button.btn-danger { background: #fee; color: #dc2626; border-color: #dc2626; }
+        button.btn-danger:hover { background: #fca5a5; color: #fff; }
+        .status-box {
+            margin-top: 12px;
+            border-top: 1px solid #ccc;
+            padding-top: 8px;
+            font-size: 11px;
+            color: #555;
+        }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2>😈 dummy666 Controller (LWT Enabled)</h2>
-        
+    <h1>espTEST Controller (LWT Enabled)</h1>
+    
+    <div class="panel">
         <div class="row">
             <label>Arc Flash State (Immediate Event Trigger)</label>
             <select id="arcInput">
                 <option value="0.0">0.0 - Normal Heartbeat (1/30Hz)</option>
-                <option value="1.0">1.0 - ⚡ Immediate ARC TRIP</option>
+                <option value="1.0">1.0 - TRIP (Immediate)</option>
             </select>
         </div>
 
         <div class="row">
-            <label>Current RMS (A) - 1 Hz (Threshold > 600 A)</label>
+            <label>Current RMS (A) - 1 Hz (Limit: 600 A)</label>
             <input type="number" id="currentInput" step="1.0" value="250.0">
         </div>
 
         <div class="row">
-            <label>Relative Humidity (%) - 1/30 Hz (Threshold > 85 %RH)</label>
+            <label>Relative Humidity (%) - 1/30 Hz (Limit: 85 %)</label>
             <input type="number" id="humidityInput" step="1.0" value="50.0">
         </div>
 
         <div class="btn-group">
-            <button class="btn-apply" onclick="submitValues()">Inject Values</button>
-            <button class="btn-safe" onclick="resetSafe()">Reset Safe</button>
+            <button class="btn-danger" onclick="submitValues()">Inject Values</button>
+            <button onclick="resetSafe()">Reset Safe</button>
         </div>
 
         <div class="btn-group">
-            <button class="btn-warn" onclick="toggleConn(false)">Set OFFLINE</button>
-            <button class="btn-safe" onclick="toggleConn(true)">Set ONLINE</button>
+            <button onclick="toggleConn(false)">Set OFFLINE</button>
+            <button onclick="toggleConn(true)">Set ONLINE</button>
         </div>
 
         <div class="btn-group">
-            <button class="btn-kill" onclick="simulateCrash()">💥 Force Hard Crash (Test Broker LWT)</button>
+            <button class="btn-danger" onclick="simulateCrash()">Force Hard Crash (Test LWT)</button>
         </div>
 
-        <div class="status-box" id="statusMessage">Initial state: ONLINE, non-anomaly values.</div>
+        <div class="status-box" id="statusMessage">Initial state: ONLINE, baseline values.</div>
     </div>
 
     <script>
@@ -166,12 +189,12 @@ def control_panel():
                 current: parseFloat(document.getElementById("currentInput").value),
                 humidity: parseFloat(document.getElementById("humidityInput").value)
             };
-            const res = await fetch("/api/update", {
+            await fetch("/api/update", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
             });
-            document.getElementById("statusMessage").innerText = `Injected: Arc ${payload.arc}, Curr ${payload.current}A, Hum ${payload.humidity}%`;
+            document.getElementById("statusMessage").innerText = `Injected: Arc ${payload.arc}, Curr ${payload.current} A, Hum ${payload.humidity} %`;
         }
 
         async function resetSafe() {
@@ -189,7 +212,7 @@ def control_panel():
         }
 
         async function simulateCrash() {
-            if (confirm("This will kill evil_dummy process abruptly to trigger broker LWT within keepalive interval. Continue?")) {
+            if (confirm("Kill process abruptly to trigger broker LWT?")) {
                 await fetch("/api/simulate_crash", { method: "POST" });
             }
         }
@@ -199,4 +222,4 @@ def control_panel():
 """
 
 if __name__ == "__main__":
-  uvicorn.run(app, host="0.0.0.0", port=8090)
+  uvicorn.run(app, host="0.0.0.0", port=8070)
